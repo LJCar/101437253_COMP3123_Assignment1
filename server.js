@@ -5,6 +5,12 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 app.use(express.json());
 
+// Helper functions
+const validateEmail = (email) => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(String(email).toLowerCase());
+};
+
 // DB Connection
 const MONGO_URI = 'mongodb+srv://ljcaridi:COMP3123@cluster0.o9paj.mongodb.net/' +
     '?retryWrites=true&w=majority&appName=Cluster0'
@@ -41,14 +47,44 @@ const employee = mongoose.model('Employee', employeeSchema);
 
 
 // Routes
-router.post('/api/v1/user/signup', (req, res) => {
-    const { username, email, password } = req.body;
+router.post('/api/v1/user/signup', async (req, res) => {
+    let {username, email, password} = req.body;
 
     try {
+        if (!username || username === '') {
+            return res.status(400).json({ status: false,
+                message: 'Username cannot be empty or just spaces' });
+        }
 
-    }
-    catch (error) {
+        if (!validateEmail(email)) {
+            return res.status(400).json({ status: false, message: 'Invalid email format' });
+        }
 
+        const existingUser = await user.findOne({email});
+        if (existingUser) {
+            return res.status(400).json({ status: false, message: 'User already exists' });
+        }
+
+        if (password.trim.length < 6) {
+            return res.status(400).json({ status: false, message: 'Password must be at least 6 characters long' });
+        }
+
+        username = username.trim();
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const newUser = new user({
+            username,
+            email,
+            password: hashedPassword,
+            created_at: new Date(),
+            updated_at: new Date()
+        });
+        await newUser.save();
+        res.status(201).json({ "message": "User created successfully.",
+            "user_id": newUser._id });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
     }
 
 })
