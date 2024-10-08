@@ -120,9 +120,45 @@ router.post('/api/v1/user/login', async (req, res) => {
     }
 });
 
-router.get('/api/v1/emp/employees', (req, res) => {})
+router.get('/api/v1/emp/employees', async (req, res) => {
+    try {
+        const employees = await employee.find().select('-created_at -updated_at');
+        res.status(200).json(employees);
 
-router.put('/api/v1/emp/employees', (req, res) => {})
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({message: 'Server error'});
+    }
+});
+
+router.post('/api/v1/emp/employees', async (req, res) => {
+    try {
+        const {first_name, last_name, email, position, salary, date_of_joining, department} = req.body;
+
+        if (!validateEmail(email)) {
+            return res.status(400).json({status: false, message: 'Invalid email format'});
+        }
+
+        const newEmployee = new employee({
+            first_name,
+            last_name,
+            email,
+            position,
+            salary,
+            date_of_joining: new Date(date_of_joining),
+            department
+        });
+        await newEmployee.save();
+        res.status(201).json(newEmployee.toObject({ versionKey: false, transform: (doc, ret) => {
+                delete ret.createdAt;
+                delete ret.updatedAt;
+                return ret;
+            }}));
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({message: 'Server error'});
+    }
+});
 
 router.get('/api/v1/emp/employees/:eid', (req, res) => {})
 
