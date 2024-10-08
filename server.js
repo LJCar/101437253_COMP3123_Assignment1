@@ -3,7 +3,9 @@ const app = express();
 const router = express.Router();
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 app.use(express.json());
+const JWT_SECRET = 'COMP3123_secret_key';
 
 // Helper functions
 const validateEmail = (email) => {
@@ -51,18 +53,24 @@ router.post('/api/v1/user/signup', async (req, res) => {
     let {username, email, password} = req.body;
 
     try {
+
         if (!username || username === '') {
             return res.status(400).json({ status: false,
                 message: 'Username cannot be empty or just spaces' });
         }
 
+        const existingUser = await user.findOne({username})
+        if (!existingUser) {
+            return res.status(400).json({ status: false, message: 'Username taken'})}
+
+
         if (!validateEmail(email)) {
             return res.status(400).json({ status: false, message: 'Invalid email format' });
         }
 
-        const existingUser = await user.findOne({email});
-        if (existingUser) {
-            return res.status(400).json({ status: false, message: 'User already exists' });
+        const existingEmail = await user.findOne({email});
+        if (existingEmail) {
+            return res.status(400).json({ status: false, message: 'Email already exists' });
         }
 
         if (password.trim.length < 6) {
@@ -86,10 +94,31 @@ router.post('/api/v1/user/signup', async (req, res) => {
         console.error(error);
         res.status(500).json({ message: 'Server error' });
     }
+});
 
-})
+router.post('/api/v1/user/login', async (req, res) => {
+    const {username, password} = req.body;
+    try {
+        const userToLogin = await user.findOne({
+            $or: [{username}, {email: username}]
+        });
+        if (!userToLogin) {
+            return res.status(400).json({ status: false, message: 'Invalid username or password' });
+        }
 
-router.post('/api/v1/user/login', (req, res) => {})
+        const passwordMatch = await bcrypt.compare(password, userToLogin.password);
+        if (!passwordMatch) {
+            return res.status(400).json({ status: false, message: 'Invalid username or password' });
+        }
+
+        const token = jwt.sign({ userId: userToLogin._id }, JWT_SECRET, { expiresIn: '3h' });
+        res.status(200).json({ message: 'Login successful', jwt_token: token });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({message: 'Server error'});
+    }
+});
 
 router.get('/api/v1/emp/employees', (req, res) => {})
 
