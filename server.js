@@ -56,25 +56,26 @@ router.post('/api/v1/user/signup', async (req, res) => {
 
         if (!username || username === '') {
             return res.status(400).json({ status: false,
-                message: 'Username cannot be empty or just spaces' });
+                "message": 'Username cannot be empty or just spaces' });
         }
 
         const existingUser = await user.findOne({username})
         if (!existingUser) {
-            return res.status(400).json({ status: false, message: 'Username taken'})}
+            return res.status(400).json({ status: false, "message": 'Username taken'})}
 
 
         if (!validateEmail(email)) {
-            return res.status(400).json({ status: false, message: 'Invalid email format' });
+            return res.status(400).json({ status: false, "message": 'Invalid email format' });
         }
 
         const existingEmail = await user.findOne({email});
         if (existingEmail) {
-            return res.status(400).json({ status: false, message: 'Email already exists' });
+            return res.status(400).json({ status: false, "message": 'Email already exists' });
         }
 
         if (password.trim.length < 6) {
-            return res.status(400).json({ status: false, message: 'Password must be at least 6 characters long' });
+            return res.status(400).json({ status: false,
+                "message": 'Password must be at least 6 characters long' });
         }
 
         username = username.trim();
@@ -87,12 +88,13 @@ router.post('/api/v1/user/signup', async (req, res) => {
             updated_at: new Date()
         });
         await newUser.save();
-        res.status(201).json({ "message": "User created successfully.",
+        res.status(201).json({
+            "message": "User created successfully.",
             "user_id": newUser._id });
 
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ "message": 'Server error' });
     }
 });
 
@@ -103,20 +105,20 @@ router.post('/api/v1/user/login', async (req, res) => {
             $or: [{username}, {email: username}]
         });
         if (!userToLogin) {
-            return res.status(400).json({ status: false, message: 'Invalid username or password' });
+            return res.status(400).json({ status: false, "message": 'Invalid username or password' });
         }
 
         const passwordMatch = await bcrypt.compare(password, userToLogin.password);
         if (!passwordMatch) {
-            return res.status(400).json({ status: false, message: 'Invalid username or password' });
+            return res.status(400).json({ status: false, "message": 'Invalid username or password' });
         }
 
         const token = jwt.sign({ userId: userToLogin._id }, JWT_SECRET, { expiresIn: '3h' });
-        res.status(200).json({ message: 'Login successful', jwt_token: token });
+        res.status(200).json({ "message": 'Login successful', jwt_token: token });
 
     } catch (error) {
         console.error(error);
-        res.status(500).json({message: 'Server error'});
+        res.status(500).json({ "message": 'Server error' });
     }
 });
 
@@ -127,7 +129,7 @@ router.get('/api/v1/emp/employees', async (req, res) => {
 
     } catch (error) {
         console.error(error);
-        res.status(500).json({message: 'Server error'});
+        res.status(500).json({ "message": 'Server error'});
     }
 });
 
@@ -136,7 +138,7 @@ router.post('/api/v1/emp/employees', async (req, res) => {
         const {first_name, last_name, email, position, salary, date_of_joining, department} = req.body;
 
         if (!validateEmail(email)) {
-            return res.status(400).json({status: false, message: 'Invalid email format'});
+            return res.status(400).json({ status: false, "message": 'Invalid email format'});
         }
 
         const newEmployee = new employee({
@@ -149,23 +151,76 @@ router.post('/api/v1/emp/employees', async (req, res) => {
             department
         });
         await newEmployee.save();
-        res.status(201).json(newEmployee.toObject({ versionKey: false, transform: (doc, ret) => {
-                delete ret.createdAt;
-                delete ret.updatedAt;
-                return ret;
-            }}));
+        res.status(201).json({
+            "message": "Employee created successfully.",
+            "employee_id": newEmployee._id
+        })
     } catch (error) {
         console.error(error);
         res.status(500).json({message: 'Server error'});
     }
 });
 
-router.get('/api/v1/emp/employees/:eid', (req, res) => {})
+router.get('/api/v1/emp/employees/:eid', async (req, res) => {
+    try {
+        const {eid} = req.params;
+        const employeeData = await employee.findById(eid).select('-createdAt -updatedAt');
 
-router.put('/api/v1/emp/employees/:eid', (req, res) => {})
+        if (!employeeData) {
+            return res.status(404).json({ message: 'Employee not found' });
+        }
+        res.status(200).json(employeeData);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ "message": 'Server error'});
+    }
+});
 
-router.delete('/api/v1/emp/employees/:eid', (req, res) => {})
+router.put('/api/v1/emp/employees/:eid', async (req, res) => {
 
+    try {
+        const {eid} = req.params;
+        const updateData = req.body;
+        const employeeData = await employee.findById(eid);
+
+        if (!employeeData) {
+            return res.status(404).json({ "message": 'Employee not found' });
+        }
+        if (updateData.email) {
+            if (!validateEmail(updateData.email)) {
+                return res.status(400).json({ "message": 'Invalid email format' });
+            }
+            const existingEmail = await employee.findOne({ email: updateData.email });
+            if (existingEmail && existingEmail._id.toString() !== eid) {
+                return res.status(400).json({ "message": 'Email already in use' });
+            }
+        }
+
+        Object.assign(employeeData, updateData, { updated_at: new Date() });
+        await employeeData.save();
+        res.status(200).json({
+            "message": "Employee details updated successfully."
+        })
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ "message": 'Server error'});
+    }
+});
+
+router.delete('/api/v1/emp/employees', async (req, res) => {
+    const { eid } = req.query;
+    try {
+        const deletedEmployee = await employee.findByIdAndDelete(eid);
+
+        if (!deletedEmployee) {
+            return res.status(404).json({ "message": 'Employee not found'});
+        }
+        res.status(204).json({ "message": "Employee deleted successfully." });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ "message": 'Server error'});
+    }
+});
 
 
 app.use('/', router);
