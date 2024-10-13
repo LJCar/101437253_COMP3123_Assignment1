@@ -152,7 +152,11 @@ router.post('/api/v1/user/login', userLoginValidation, async (req, res) => {
 });
 
 //get all employees
-router.get('/api/v1/emp/employees', async (req, res) => {
+router.get('/api/v1/emp/employees', employeeCreationValidation, async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
     try {
         const employees = await Employee.find().select('-created_at -updated_at');
         res.status(200).json(employees);
